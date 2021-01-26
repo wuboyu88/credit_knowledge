@@ -44,10 +44,11 @@ def get_flow_rate(df_overdue, term_name, key_name, m_current_name, m_next_name):
     result = None
     for term in term_list:
         df_one_term = df_overdue[df_overdue[term_name] == term]
+        one_term_result = get_one_term_rate(df_one_term, key_name, m_current_name, m_next_name)
         if result is None:
-            result = get_one_term_rate(df_one_term, key_name, m_current_name, m_next_name)
+            result = one_term_result
         else:
-            result += get_one_term_rate(df_one_term, key_name, m_current_name, m_next_name)
+            result = result.add(one_term_result, fill_value=0)
     result = result / len(term_list)
     return result
 
