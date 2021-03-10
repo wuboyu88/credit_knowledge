@@ -17,7 +17,7 @@ def get_mob_bad_rate(x, mob, key_name):
 
 
 def get_vintage(loan_repay_detail, key_name, loan_date_name, term_name, prin_days_name, accu_days_name, nb_mob=36,
-                overdue_days_threshold=30, dimension='loan'):
+                overdue_days_threshold=30, dimension='loan', status='delay_status'):
     """
     账龄分析表
     :param loan_repay_detail: 贷款还款明细表
@@ -29,6 +29,7 @@ def get_vintage(loan_repay_detail, key_name, loan_date_name, term_name, prin_day
     :param nb_mob: mob的个数, 默认是36
     :param overdue_days_threshold: 好坏标志对应的逾期天数阀值, 默认是30, 一般是通过滚动率或迁移率确定, 比如认为M1是坏则对应30天
     :param dimension: 统计维度, 默认是借据号维度loan, 也可以是客户号维度customer
+    :param status: delay_status(本息), prin_delay_status(本金), accu_delay_status(利息)
     :return: 账龄分析表
     """
     if dimension == 'customer':
@@ -44,8 +45,12 @@ def get_vintage(loan_repay_detail, key_name, loan_date_name, term_name, prin_day
     # 放款日期作为首期
     df_loan['FIRST_TERM'] = df_loan[loan_date_name]
 
-    # 本息逾期天数最大值
-    df_loan['MAX_DELAY_DAYS'] = df_loan[[prin_days_name, accu_days_name]].max(axis=1)
+    if status == 'prin_delay_status':
+        df_loan['MAX_DELAY_DAYS'] = df_loan[prin_days_name]
+    elif status == 'accu_delay_status':
+        df_loan['MAX_DELAY_DAYS'] = df_loan[accu_days_name]
+    else:
+        df_loan['MAX_DELAY_DAYS'] = df_loan[[prin_days_name, accu_days_name]].max(axis=1)
 
     # MOB为TERM和FIRST_TERM的月份差
     df_loan['MOB'] = np.round(

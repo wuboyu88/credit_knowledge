@@ -22,7 +22,7 @@ df_flow_rate = get_flow_rate(loan_repay_detail, key_name, term_name, prin_days_n
 
 # 账龄
 df_vintage = get_vintage(loan_repay_detail, key_name, loan_date_name, term_name, prin_days_name, accu_days_name,
-                         nb_mob=12, overdue_days_threshold=30, dimension='loan')
+                         nb_mob=12, overdue_days_threshold=30, dimension='loan', status='delay_status')
 
 # 账龄写入excel
 vintage_to_excel(df_vintage, 'credit_knowledge/example/vintage_analysis.xlsx', nb_month_per_graph=12)
