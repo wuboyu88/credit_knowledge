@@ -1,58 +1,54 @@
+# -*- coding: utf-8 -*-
 import pandas as pd
+from copy import deepcopy
+from credit_knowledge.common_util import delay_status_map, get_one_term_rate
 
 
-def get_one_term_rate(df_one_term, key_name, m_current_name, m_next_name):
+def get_flow_rate(loan_repay_detail, key_name, term_name, prin_days_name, accu_days_name, status='delay_status'):
     """
-    根据一期的逾期信息得到转化率，亦可理解为以当前期月底作为观察点，观察前后一个月的逾期信息得到的滚动率
-    :param df_one_term: 一期的逾期信息数据表
+    迁移率（每期取算数平均值）
+    :param loan_repay_detail: 贷款还款明细表
     :param key_name: 主键列名
-    :param m_current_name: 当前期列名
-    :param m_next_name: 下一期列名
-    :return: result
-    """
-    # 按照当前月和下一个月两个字段同时进行统计频数(即分子)
-    r1 = df_one_term.groupby([m_current_name, m_next_name]).count().reset_index()
-
-    # 当前月每个逾期类型对应客户数(即分母)
-    r2 = df_one_term.groupby([m_current_name]).count().reset_index()[[m_current_name, key_name]]
-
-    # 关联r1和r2
-    r = pd.merge(r1, r2, on=m_current_name, suffixes=('_numerator', '_denominator'))
-
-    # 计算占比(分子/分母)
-    r['ratio'] = r['{}_numerator'.format(key_name)] / r['{}_denominator'.format(key_name)]
-
-    # 生成透视表
-    result = pd.pivot_table(r, index=[m_current_name], columns=m_next_name, values='ratio')
-
-    # 缺失值填0
-    result.fillna(0, inplace=True)
-    return result
-
-
-def get_flow_rate(df_overdue, term_name, key_name, m_current_name, m_next_name):
-    """
-    得到迁移率（每期取算数平均值）
-    :param df_overdue: 逾期期数数据集
     :param term_name: 期数列名
-    :param key_name: 主键列名
-    :param m_current_name: 当前期列名
-    :param m_next_name: 下一期列名
-    :return: result
+    :param prin_days_name: 本金逾期天数列名
+    :param accu_days_name: 利息逾期天数列名
+    :param status: delay_status(本息), prin_delay_status(本金), accu_delay_status(利息)
+    :return: 迁移率
     """
-    term_list = sorted(list(df_overdue[term_name].unique()))
+    df_loan = deepcopy(loan_repay_detail)
+
+    # 本息逾期天数最大值
+    df_loan['MAX_DELAY_DAYS'] = df_loan[[prin_days_name, accu_days_name]].max(axis=1)
+
+    if status == 'prin_delay_status':
+        df_loan[status] = df_loan[prin_days_name].apply(delay_status_map)
+    elif status == 'accu_delay_status':
+        df_loan[status] = df_loan[accu_days_name].apply(delay_status_map)
+    else:
+        df_loan[status] = df_loan['MAX_DELAY_DAYS'].apply(delay_status_map)
+
+    # 字符串yyyy-mm转成数值型yyyymm
+    df_loan[term_name] = df_loan[term_name].apply(lambda x: int(x[0:4]+x[5:7]))
+
+    # 当前期
+    df_current = deepcopy(df_loan)
+    df_current['rank'] = df_current.groupby([key_name])[term_name].rank(method='first')
+
+    # 下一期
+    df_next = deepcopy(df_loan)
+    df_next['rank'] = df_next.groupby([key_name])[term_name].rank(method='first')-1
+    df_next = df_next[[key_name, status, 'rank']]
+
+    df_all = pd.merge(df_current, df_next, on=[key_name, 'rank'], suffixes=('_current', '_next'))
+
+    term_list = sorted(list(df_all[term_name].unique()))
     result = None
     for term in term_list:
-        df_one_term = df_overdue[df_overdue[term_name] == term]
-        one_term_result = get_one_term_rate(df_one_term, key_name, m_current_name, m_next_name)
+        df_one_term = df_all[df_all[term_name] == term]
+        one_term_result = get_one_term_rate(df_one_term, key_name, status + '_current', status + '_next')
         if result is None:
             result = one_term_result
         else:
             result = result.add(one_term_result, fill_value=0)
     result = result / len(term_list)
     return result
-
-
-if __name__ == '__main__':
-    df = pd.read_csv('data/overdue.csv')
-    flow_rate = get_flow_rate(df, 'term', 'cust_num', 'm_current', 'm_next')
