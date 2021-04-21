@@ -52,6 +52,9 @@ def get_roll_rate(loan_repay_detail, key_name, term_name, prin_days_name, accu_d
 
     m_current_name = status + '_current'
     m_next_name = status + '_next'
-    result = get_one_term_rate(r, key_name, m_current_name, m_next_name)
 
-    return result
+    count_result = pd.pivot_table(r, index=[m_current_name], columns=m_next_name, values=key_name, aggfunc='count')
+    count_result.fillna(0, inplace=True)
+    ratio_result = get_one_term_rate(r, key_name, m_current_name, m_next_name)
+
+    return count_result, ratio_result
